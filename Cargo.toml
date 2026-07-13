@@ -13,6 +13,15 @@ categories = ["command-line-utilities", "development-tools", "visualization"]
 [package.metadata.lockpick]
 license-header = ".github/license_header.rs"
 
+# Coverage gate over production code only: test modules opt out via
+# `coverage_nightly`. One defensive line keeps `lines` off 100; the
+# missed branches are the untaken sides of defensive fallbacks.
+[package.metadata.lockpick.coverage]
+functions = 100
+lines = 99
+regions = 99
+branches = 93
+
 [lints.rust]
 unsafe_code = "forbid"
 warnings = "deny"
@@ -53,3 +62,6 @@ thiserror = "2"
 default = ["gix"]
 gix = ["dep:gix"]
 git2 = ["dep:git2"]
+
+[dev-dependencies]
+tempfile = "3"

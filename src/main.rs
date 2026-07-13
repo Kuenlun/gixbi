@@ -8,6 +8,9 @@
 
 use std::process::ExitCode;
 
+#[cfg(not(any(feature = "gix", feature = "git2")))]
+compile_error!("select a git backend: feature `gix` (the default) or `git2`");
+
 mod cli;
 
 fn main() -> ExitCode {

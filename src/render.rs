@@ -659,6 +659,71 @@ interactions:
     }
 
     #[test]
+    fn glyph_tables_are_total_and_disjoint_where_it_matters() {
+        let shapes = [
+            Shape::Blank,
+            Shape::Node,
+            Shape::Vertical { dashed: false },
+            Shape::Vertical { dashed: true },
+            Shape::Horizontal { dashed: false },
+            Shape::Horizontal { dashed: true },
+            Shape::DownRight,
+            Shape::DownLeft,
+            Shape::UpRight,
+            Shape::UpLeft,
+            Shape::VerticalRight,
+            Shape::VerticalLeft,
+            Shape::HorizontalUp,
+            Shape::HorizontalDown,
+            Shape::Cross,
+        ];
+        for ascii in [false, true] {
+            let theme = Theme {
+                color: false,
+                ascii,
+            };
+            let glyphs: Vec<char> = shapes.iter().map(|&shape| theme.glyph(shape)).collect();
+            assert!(
+                ascii == glyphs.iter().all(char::is_ascii),
+                "ascii table stays ascii"
+            );
+            // Structural glyphs must be distinguishable from blanks.
+            assert!(glyphs[1..].iter().all(|&glyph| glyph != ' '));
+        }
+        let unicode = Theme {
+            color: false,
+            ascii: false,
+        };
+        let unique: std::collections::HashSet<char> =
+            shapes.iter().map(|&shape| unicode.glyph(shape)).collect();
+        assert_eq!(
+            unique.len(),
+            shapes.len(),
+            "unicode glyphs are all distinct"
+        );
+        assert_eq!(unicode.arrow(), "\u{2190}");
+        assert_eq!(
+            Theme {
+                color: false,
+                ascii: true
+            }
+            .arrow(),
+            "<-"
+        );
+    }
+
+    #[test]
+    fn palette_cycles_beyond_twelve_branches() {
+        assert_eq!(Theme::branch(0, false), Theme::branch(12, false));
+        assert_ne!(Theme::branch(0, false), Theme::branch(1, false));
+        assert_ne!(
+            Theme::branch(0, true),
+            Theme::branch(0, false),
+            "bold differs"
+        );
+    }
+
+    #[test]
     fn dates_follow_the_recorded_offset() {
         assert_eq!(date(0, 0), "1970-01-01");
         assert_eq!(date(0, -1), "1969-12-31");

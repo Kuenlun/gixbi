@@ -997,6 +997,7 @@ dependencies = [
  "clap_complete",
  "git2",
  "gix",
+ "tempfile",
  "thiserror",
 ]
 

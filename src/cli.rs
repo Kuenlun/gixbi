@@ -125,13 +125,18 @@ pub fn run() -> Result<()> {
 }
 
 fn use_color(when: ColorWhen) -> bool {
+    auto_color(
+        when,
+        io::stdout().is_terminal(),
+        std::env::var_os("NO_COLOR"),
+    )
+}
+
+fn auto_color(when: ColorWhen, is_tty: bool, no_color: Option<std::ffi::OsString>) -> bool {
     match when {
         ColorWhen::Always => true,
         ColorWhen::Never => false,
-        ColorWhen::Auto => {
-            io::stdout().is_terminal()
-                && std::env::var_os("NO_COLOR").is_none_or(|value| value.is_empty())
-        }
+        ColorWhen::Auto => is_tty && no_color.is_none_or(|value| value.is_empty()),
     }
 }
 
@@ -167,8 +172,22 @@ mod tests {
 
     #[test]
     fn explicit_color_policies_ignore_the_environment() {
-        assert!(use_color(ColorWhen::Always));
-        assert!(!use_color(ColorWhen::Never));
+        for (tty, no_color) in [(true, Some("1".into())), (false, None)] {
+            assert!(auto_color(ColorWhen::Always, tty, no_color.clone()));
+            assert!(!auto_color(ColorWhen::Never, tty, no_color));
+        }
+    }
+
+    #[test]
+    fn auto_needs_a_tty_and_honours_no_color() {
+        assert!(auto_color(ColorWhen::Auto, true, None));
+        assert!(auto_color(
+            ColorWhen::Auto,
+            true,
+            Some(String::new().into())
+        ));
+        assert!(!auto_color(ColorWhen::Auto, true, Some("1".into())));
+        assert!(!auto_color(ColorWhen::Auto, false, None));
     }
 
     #[test]

@@ -233,6 +233,20 @@ mod tests {
         assert_eq!(canvas.resolve(1, 0).shape, Shape::UpRight);
         assert_eq!(canvas.resolve(1, 2).shape, Shape::UpLeft);
         assert_eq!(canvas.resolve(0, 4).shape, Shape::HorizontalDown);
+
+        let mut tees = Canvas::new(1, 3);
+        for (x, dirs) in [
+            (0, [Dir::Up, Dir::Down, Dir::Right].as_slice()),
+            (1, [Dir::Up, Dir::Down, Dir::Left].as_slice()),
+            (2, [Dir::Up, Dir::Left, Dir::Right].as_slice()),
+        ] {
+            for &dir in dirs {
+                tees.stroke(0, x, dir, SOLID);
+            }
+        }
+        assert_eq!(tees.resolve(0, 0).shape, Shape::VerticalRight);
+        assert_eq!(tees.resolve(0, 1).shape, Shape::VerticalLeft);
+        assert_eq!(tees.resolve(0, 2).shape, Shape::HorizontalUp);
     }
 
     #[test]

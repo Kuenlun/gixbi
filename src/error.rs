@@ -38,12 +38,6 @@ pub enum Error {
         #[source]
         source: BackendError,
     },
-    /// The repository stores objects with a hash other than SHA-1.
-    #[error("unsupported object format '{format}' (only SHA-1 is supported)")]
-    UnsupportedObjectFormat {
-        /// Name of the repository's object format.
-        format: String,
-    },
     /// More branches were requested than the analysis supports.
     #[error("{given} branches given, at most {max} are supported")]
     TooManyBranches {
@@ -52,4 +46,47 @@ pub enum Error {
         /// The supported maximum.
         max: usize,
     },
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod tests {
+    use std::error::Error as _;
+
+    use super::*;
+
+    #[test]
+    fn messages_are_actionable_and_sources_chain() {
+        let discover = Error::Discover {
+            path: "/nowhere".into(),
+            source: "backend detail".into(),
+        };
+        assert_eq!(
+            discover.to_string(),
+            "no git repository found at or above '/nowhere'"
+        );
+        assert_eq!(
+            discover.source().map(ToString::to_string).as_deref(),
+            Some("backend detail")
+        );
+
+        let resolve = Error::Resolve {
+            name: "topic".into(),
+        };
+        assert_eq!(resolve.to_string(), "cannot resolve 'topic' to a commit");
+
+        let id = CommitId::from_bytes([0xab; 20]);
+        let read = Error::ReadCommit {
+            id,
+            source: "io".into(),
+        };
+        assert_eq!(read.to_string(), format!("failed to read commit {id}"));
+        assert!(read.source().is_some());
+
+        let too_many = Error::TooManyBranches { given: 65, max: 64 };
+        assert_eq!(
+            too_many.to_string(),
+            "65 branches given, at most 64 are supported"
+        );
+    }
 }

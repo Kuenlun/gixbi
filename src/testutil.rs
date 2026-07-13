@@ -15,7 +15,7 @@ pub fn id(byte: u8) -> CommitId {
 }
 
 /// A purely synthetic commit graph with refs, no git involved.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MemRepo {
     commits: HashMap<CommitId, CommitMeta>,
     summaries: HashMap<CommitId, String>,
