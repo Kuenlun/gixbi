@@ -1,0 +1,6 @@
+# Releases happen on GitHub only: version bumps, changelog, tag and
+# release assets. The crate is not published to crates.io.
+[workspace]
+publish = false
+git_release_enable = true
+git_tag_enable = true
