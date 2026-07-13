@@ -113,7 +113,7 @@ mod tests {
             .commit(3, &[2], 30)
             .commit(4, &[2], 25)
             .commit(5, &[4], 35);
-        let arena = Arena::load(&repo, &[id(3), id(5)]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[id(3), id(5)]).unwrap();
         let tips = vec![arena.lookup(id(3)).unwrap(), arena.lookup(id(5)).unwrap()];
         (arena, tips)
     }
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn identical_tips_leave_the_second_branch_without_owned_commits() {
         let repo = MemRepo::new().commit(1, &[], 10).commit(2, &[1], 20);
-        let arena = Arena::load(&repo, &[id(2), id(2)]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[id(2), id(2)]).unwrap();
         let tip = arena.lookup(id(2)).unwrap();
         let chains = Chains::build(&arena, &[tip, tip]);
         assert_eq!(chains.owned(1), []);
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn disjoint_roots_never_fork() {
         let repo = MemRepo::new().commit(1, &[], 10).commit(9, &[], 12);
-        let arena = Arena::load(&repo, &[id(1), id(9)]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[id(1), id(9)]).unwrap();
         let chains = Chains::build(
             &arena,
             &[arena.lookup(id(1)).unwrap(), arena.lookup(id(9)).unwrap()],

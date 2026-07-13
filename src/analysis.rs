@@ -169,16 +169,7 @@ pub fn analyze(
         .iter()
         .map(|name| repo.resolve(name))
         .collect::<Result<Vec<_>, _>>()?;
-    let arena = arena::Arena::load(repo, &ids)?;
-    let tips = ids
-        .iter()
-        .map(|&id| {
-            arena.lookup(id).ok_or_else(|| Error::ReadCommit {
-                id,
-                source: "tip vanished from the walked history".into(),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let (arena, tips) = arena::Arena::load(repo, &ids)?;
     let chains = chains::Chains::build(&arena, &tips);
     let findings = interactions::detect(&arena, &chains);
     display::assemble(repo, &arena, &chains, &findings, names, &tips, options)

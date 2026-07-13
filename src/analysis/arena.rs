@@ -21,11 +21,12 @@ pub struct Arena {
 }
 
 impl Arena {
-    /// Walks all ancestors of `tips` and packs them into an arena.
+    /// Walks all ancestors of `tips` and packs them into an arena;
+    /// also returns the arena index of every tip, in input order.
     ///
     /// Duplicate parent entries (tolerated by git, flagged by fsck) are
     /// collapsed so downstream passes can assume distinct parents.
-    pub fn load(repo: &impl Repository, tips: &[CommitId]) -> Result<Self, Error> {
+    pub fn load(repo: &impl Repository, tips: &[CommitId]) -> Result<(Self, Vec<usize>), Error> {
         let mut arena = Self {
             ids: Vec::new(),
             parents: Vec::new(),
@@ -33,9 +34,10 @@ impl Arena {
             index: HashMap::new(),
         };
         let mut pending = Vec::new();
-        for &tip in tips {
-            arena.intern(tip, &mut pending);
-        }
+        let tip_nodes = tips
+            .iter()
+            .map(|&tip| arena.intern(tip, &mut pending))
+            .collect();
         while let Some(node) = pending.pop() {
             let meta = repo.meta(arena.ids[node])?;
             arena.times[node] = meta.time;
@@ -48,7 +50,7 @@ impl Arena {
             }
             arena.parents[node] = parents;
         }
-        Ok(arena)
+        Ok((arena, tip_nodes))
     }
 
     fn intern(&mut self, id: CommitId, pending: &mut Vec<usize>) -> usize {
@@ -84,6 +86,9 @@ impl Arena {
         self.parents[node].first().copied()
     }
 
+    /// Test-only reverse lookup; production callers keep the indices
+    /// [`Self::load`] hands out.
+    #[cfg(test)]
     pub fn lookup(&self, id: CommitId) -> Option<usize> {
         self.index.get(&id).copied()
     }
@@ -143,7 +148,7 @@ mod tests {
             .commit(2, &[1], 20)
             .commit(3, &[2], 30)
             .commit_dup_parents(4, &[2, 2], 40);
-        let arena = Arena::load(&repo, &[id(3), id(4)]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[id(3), id(4)]).unwrap();
         assert_eq!(arena.len(), 4);
         let three = arena.lookup(id(3)).unwrap();
         let four = arena.lookup(id(4)).unwrap();
@@ -162,7 +167,7 @@ mod tests {
             .commit(2, &[1], 20)
             .commit(3, &[1], 15)
             .commit(4, &[2, 3], 30);
-        let arena = Arena::load(&repo, &[id(4)]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[id(4)]).unwrap();
         let order = arena.topo_parents_first();
         assert_eq!(order.len(), 4);
         let position: Vec<usize> = {

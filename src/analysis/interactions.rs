@@ -146,7 +146,7 @@ mod tests {
 
     fn analyze(repo: &MemRepo, tips: &[u8]) -> (Arena, Chains, Findings) {
         let ids: Vec<_> = tips.iter().map(|&b| id(b)).collect();
-        let arena = Arena::load(repo, &ids).unwrap();
+        let (arena, _) = Arena::load(repo, &ids).unwrap();
         let tips: Vec<_> = ids.iter().map(|&i| arena.lookup(i).unwrap()).collect();
         let chains = Chains::build(&arena, &tips);
         let findings = detect(&arena, &chains);
@@ -336,7 +336,7 @@ mod tests {
             .branch("old", 1);
         let main = repo.resolve("main").unwrap();
         let old = repo.resolve("old").unwrap();
-        let arena = Arena::load(&repo, &[main, old]).unwrap();
+        let (arena, _) = Arena::load(&repo, &[main, old]).unwrap();
         let tips = [arena.lookup(main).unwrap(), arena.lookup(old).unwrap()];
         let chains = Chains::build(&arena, &tips);
         let findings = detect(&arena, &chains);
