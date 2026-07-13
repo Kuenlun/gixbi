@@ -10,7 +10,11 @@
 //! their histories flowed into each other and renders a compact terminal
 //! graph showing only those branches, hiding every intermediate one.
 
+pub mod analysis;
 pub mod error;
 pub mod repo;
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(crate) mod testutil;
 
 pub use error::Error;

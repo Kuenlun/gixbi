@@ -169,8 +169,8 @@ pub trait Repository {
 
 /// Shared name-resolution precedence over two backend primitives: an
 /// exact full-name ref lookup (peeled to a commit) and a hex-id probe.
-#[cfg(any(feature = "gix", feature = "git2"))]
-fn resolve_with(
+#[cfg(any(feature = "gix", feature = "git2", test))]
+pub(crate) fn resolve_with(
     name: &str,
     mut lookup: impl FnMut(&str) -> Option<CommitId>,
     probe_hex: impl FnOnce(CommitId) -> Option<CommitId>,
