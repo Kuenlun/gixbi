@@ -56,8 +56,9 @@ fn direct_merge_is_reported_with_exact_commits() {
         );
         assert_eq!(last_hit(&analysis, 0, 1), None);
         assert_eq!(analysis.edges.len(), 1);
-        let fork_row = analysis.lines[1].fork.expect("feature forks off main");
+        let (fork_row, fork_adjacent) = analysis.lines[1].fork.expect("feature forks off main");
         assert_eq!(format!("{:.7}", analysis.rows[fork_row].id), short(&base));
+        assert!(fork_adjacent, "tip sits right on the fork");
     }
 }
 

@@ -14,8 +14,9 @@ pub type BackendError = Box<dyn std::error::Error + Send + Sync + 'static>;
 /// Any failure surfaced by the gixbi library.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// No git repository exists at or above the requested directory.
-    #[error("no git repository found at or above '{path}'")]
+    /// No git repository could be opened at or above the requested
+    /// directory: none exists, or the one found is unreadable.
+    #[error("cannot open a git repository at or above '{path}'")]
     Discover {
         /// Directory the discovery started from.
         path: PathBuf,
@@ -63,7 +64,7 @@ mod tests {
         };
         assert_eq!(
             discover.to_string(),
-            "no git repository found at or above '/nowhere'"
+            "cannot open a git repository at or above '/nowhere'"
         );
         assert_eq!(
             discover.source().map(ToString::to_string).as_deref(),

@@ -80,11 +80,12 @@ pub struct Incoming {
 pub struct BranchLine {
     /// Rows owned by this branch, top to bottom.
     pub rows: Vec<usize>,
-    /// Row of the commit its line joins downwards, when shared.
-    pub fork: Option<usize>,
-    /// Per drawn segment (consecutive rows, then the fork hop): true
-    /// when the commits are direct first-parent neighbours, false when
-    /// history in between is elided.
+    /// Row of the commit its line joins downwards, when shared, and
+    /// whether that hop is a direct first-parent link.
+    pub fork: Option<(usize, bool)>,
+    /// Per segment between consecutive rows: true when the commits are
+    /// direct first-parent neighbours, false when history in between
+    /// is elided.
     pub adjacent: Vec<bool>,
     /// The line continues below the truncation cut.
     pub cut: bool,
@@ -228,9 +229,12 @@ mod tests {
         let feature = &analysis.lines[1];
         assert_eq!(
             (feature.rows.as_slice(), feature.fork, feature.cut),
-            ([1].as_slice(), Some(2), false)
+            ([1].as_slice(), Some((2, true)), false)
         );
-        assert_eq!(feature.adjacent, [true]);
+        assert!(
+            feature.adjacent.is_empty(),
+            "single own row, fork hop carries its link"
+        );
 
         assert_eq!(analysis.edges.len(), 1);
         let edge = &analysis.edges[0];

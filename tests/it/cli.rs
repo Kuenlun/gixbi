@@ -128,7 +128,7 @@ fn error_paths_use_distinct_exit_codes() {
     let outside = tempfile::TempDir::new().expect("tempdir");
     let (_, stderr, code) = gixbi(&["-C", outside.path().to_str().expect("utf8"), "a", "b"]);
     assert_eq!(code, 1);
-    assert!(stderr.contains("no git repository found"));
+    assert!(stderr.contains("cannot open a git repository"));
 }
 
 #[test]
@@ -160,6 +160,59 @@ fn unicode_branch_names_and_subjects_align() {
     assert_eq!(code, 0, "stderr: {stderr}");
     assert!(stdout.contains("(función/ñoño) trabajo con acentos áéíóú y 漢字"));
     assert!(stdout.contains("\u{2190} función/ñoño @"));
+
+    // The summary block pads by characters, not bytes. `ñu` and `xy`
+    // have the same character width but different byte lengths, so
+    // byte-based padding would splay the value columns.
+    repo.git(&["branch", "ñu", "main"]);
+    repo.git(&["branch", "xy", "main~1"]);
+    let (stdout, _, code) = gixbi(&["-C", dir, "--color=never", "main", "ñu", "xy"]);
+    assert_eq!(code, 0);
+    let summary = stdout
+        .split("interactions:\n")
+        .nth(1)
+        .expect("summary block");
+    let columns: Vec<usize> = summary
+        .lines()
+        .map(|line| {
+            let chars: Vec<char> = line.chars().skip(2).collect();
+            let pad = chars
+                .windows(2)
+                .position(|pair| pair == [' ', ' '])
+                .unwrap_or_else(|| panic!("no padded label in {line}"));
+            pad + chars[pad..].iter().take_while(|&&c| c == ' ').count()
+        })
+        .collect();
+    assert_eq!(columns.len(), 6, "three branches, six ordered pairs");
+    assert!(
+        columns.windows(2).all(|pair| pair[0] == pair[1]),
+        "value columns line up by chars: {columns:?}"
+    );
+}
+
+#[test]
+fn control_characters_in_messages_cannot_forge_output() {
+    let repo = TestRepo::new();
+    repo.commit("root");
+    repo.git(&[
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "evil\rFORGED-ROW \x1b]0;pwned\x07\x1b[31mred",
+    ]);
+    repo.git(&["branch", "other", "HEAD~1"]);
+
+    let dir = repo.path().to_str().expect("utf8 path");
+    let (stdout, _, code) = gixbi(&["-C", dir, "--color=never", "main", "other"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains('\r'), "carriage returns are stripped");
+    assert!(!stdout.contains('\u{1b}'), "escape sequences are stripped");
+    assert!(!stdout.contains('\u{7}'), "bells are stripped");
+    assert!(
+        stdout.contains("evil FORGED-ROW"),
+        "printable text survives"
+    );
 }
 
 #[test]

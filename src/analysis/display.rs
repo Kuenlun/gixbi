@@ -148,12 +148,20 @@ fn build_rows(
         .iter()
         .map(|&node| {
             let details = repo.details(arena.id(node))?;
+            // Commit messages are attacker-controlled terminal input:
+            // strip control characters (\r, ESC, ...) so a summary can
+            // never rewrite the graph or retitle the terminal.
+            let summary = details
+                .summary
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .collect();
             Ok(Node {
                 id: arena.id(node),
                 owner: chains.owner(node).unwrap_or_default(),
                 time: details.time,
                 offset: details.offset,
-                summary: details.summary,
+                summary,
                 tip_of: Vec::new(),
                 incoming: Vec::new(),
             })
@@ -179,20 +187,19 @@ fn build_lines(
                 .map_while(|node| row_of.get(&node).copied())
                 .collect();
             let wanted_fork = rows.last().and_then(|_| chains.fork(branch));
-            let fork = wanted_fork.and_then(|fork| row_of.get(&fork).copied());
-            let mut adjacent: Vec<bool> = rows
+            let fork = wanted_fork
+                .and_then(|fork| row_of.get(&fork).copied())
+                .map(|fork_row| {
+                    let last = rows[rows.len() - 1];
+                    (
+                        fork_row,
+                        chain_adjacent(chains, branch, order, last, fork_row),
+                    )
+                });
+            let adjacent: Vec<bool> = rows
                 .windows(2)
                 .map(|pair| chain_adjacent(chains, branch, order, pair[0], pair[1]))
                 .collect();
-            if let Some(fork_row) = fork {
-                adjacent.push(chain_adjacent(
-                    chains,
-                    branch,
-                    order,
-                    rows[rows.len() - 1],
-                    fork_row,
-                ));
-            }
             let drawn = rows.len() + usize::from(fork.is_some());
             let wanted = all_nodes.len() + usize::from(wanted_fork.is_some());
             let cut = drawn < wanted;

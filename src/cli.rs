@@ -74,8 +74,7 @@ struct Cli {
 
     /// Print a shell completion script for <SHELL> to stdout.
     ///
-    /// Source the output to enable tab completion. Supported values:
-    /// bash, elvish, fish, powershell, zsh.
+    /// Source the output to enable tab completion.
     #[arg(long, value_name = "SHELL", exclusive = true)]
     completions: Option<Shell>,
 }

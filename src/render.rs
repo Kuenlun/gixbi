@@ -32,6 +32,12 @@ pub struct RenderOptions {
 
 /// Renders the whole report: graph, truncation marker and per-pair
 /// interaction summary.
+///
+/// # Panics
+///
+/// Expects a coherent [`Analysis`] as produced by
+/// [`analyze`](crate::analysis::analyze); hand-built values with
+/// out-of-range row or branch indices may panic.
 #[must_use]
 pub fn render(analysis: &Analysis, options: &RenderOptions) -> String {
     let theme = Theme {
@@ -78,14 +84,13 @@ fn draw(analysis: &Analysis, layout: &layout::Layout, truncation_row: Option<usi
         for (segment, pair) in line.rows.windows(2).enumerate() {
             canvas.vertical(x, pair[0], pair[1], stroke(branch, !line.adjacent[segment]));
         }
-        if let (Some(&last), Some(fork)) = (line.rows.last(), line.fork) {
-            let dashed = !line.adjacent[line.adjacent.len() - 1];
-            canvas.vertical(x, last, fork, stroke(branch, dashed));
+        if let (Some(&last), Some((fork, adjacent))) = (line.rows.last(), line.fork) {
+            canvas.vertical(x, last, fork, stroke(branch, !adjacent));
             canvas.horizontal(
                 fork,
                 x,
                 layout.column_x[analysis.rows[fork].owner],
-                stroke(branch, dashed),
+                stroke(branch, !adjacent),
             );
         }
         if let (Some(row), Some(&last), true) = (truncation_row, line.rows.last(), line.cut) {
@@ -193,36 +198,29 @@ fn summary_block(analysis: &Analysis, theme: &Theme) -> String {
     if analysis.branches.len() < 2 {
         return String::new();
     }
-    let label = |source: usize, target: usize| {
-        (
-            format!(
-                "{} -> {}",
-                analysis.branches[source].name, analysis.branches[target].name
-            ),
-            format!(
-                "{} -> {}",
-                theme.paint(
-                    &analysis.branches[source].name,
-                    Theme::branch(source, false)
-                ),
-                theme.paint(
-                    &analysis.branches[target].name,
-                    Theme::branch(target, false)
-                ),
-            ),
-        )
-    };
-    let width = analysis
+    // Pad by character count so accented names still line up.
+    let labels: Vec<(usize, String)> = analysis
         .summaries
         .iter()
-        .map(|pair| label(pair.source, pair.target).0.len())
-        .max()
-        .unwrap_or(0);
+        .map(|pair| {
+            let (source, target) = (
+                &analysis.branches[pair.source].name,
+                &analysis.branches[pair.target].name,
+            );
+            let chars = source.chars().count() + " -> ".len() + target.chars().count();
+            let coloured = format!(
+                "{} -> {}",
+                theme.paint(source, Theme::branch(pair.source, false)),
+                theme.paint(target, Theme::branch(pair.target, false)),
+            );
+            (chars, coloured)
+        })
+        .collect();
+    let width = labels.iter().map(|&(chars, _)| chars).max().unwrap_or(0);
 
     let mut out = String::from("interactions:\n");
-    for pair in &analysis.summaries {
-        let (plain, coloured) = label(pair.source, pair.target);
-        let pad = " ".repeat(width - plain.len());
+    for (pair, (chars, coloured)) in analysis.summaries.iter().zip(labels) {
+        let pad = " ".repeat(width - chars);
         match &pair.hit {
             Some(hit) => {
                 let _ = write!(
@@ -251,8 +249,9 @@ fn summary_block(analysis: &Analysis, theme: &Theme) -> String {
 
 /// `YYYY-MM-DD` of a commit in its own recorded timezone.
 fn date(time: i64, offset: i32) -> String {
-    // Howard Hinnant's civil-from-days algorithm.
-    let days = (time + i64::from(offset)).div_euclid(86_400);
+    // Howard Hinnant's civil-from-days algorithm. Git tolerates absurd
+    // timestamps in commit objects, so the shift must not overflow.
+    let days = time.saturating_add(i64::from(offset)).div_euclid(86_400);
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;
@@ -737,5 +736,9 @@ interactions:
             "offset crosses new year"
         );
         assert_eq!(date(-86_400, 0), "1969-12-31", "pre-epoch");
+        // Git tolerates absurd committer timestamps; formatting them
+        // must neither overflow nor panic.
+        let _ = date(i64::MAX, 3600);
+        let _ = date(i64::MIN, -3600);
     }
 }
