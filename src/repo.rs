@@ -89,11 +89,11 @@ impl CommitId {
     /// The full 40-character lowercase hex form.
     #[must_use]
     pub fn to_hex(&self) -> String {
+        const DIGITS: &[u8; 16] = b"0123456789abcdef";
         let mut hex = String::with_capacity(40);
         for byte in self.0 {
-            for nibble in [byte >> 4, byte & 0xf] {
-                hex.push(char::from_digit(u32::from(nibble), 16).unwrap_or('0'));
-            }
+            hex.push(char::from(DIGITS[usize::from(byte >> 4)]));
+            hex.push(char::from(DIGITS[usize::from(byte & 0xf)]));
         }
         hex
     }
@@ -133,7 +133,7 @@ pub struct CommitDetails {
 }
 
 /// Read-only view of a git repository, as narrow as the analysis allows.
-pub trait Repository {
+pub trait Repository: fmt::Debug {
     /// Resolves a user-supplied name to a commit id.
     ///
     /// Precedence is fixed and identical across backends: `HEAD` or an
@@ -165,6 +165,26 @@ pub trait Repository {
     /// Returns [`Error::ReadCommit`] when the object is missing or is not
     /// a readable commit.
     fn details(&self, id: CommitId) -> Result<CommitDetails, Error>;
+}
+
+/// Forwarding impl so `&dyn Repository` (and any reference) satisfies
+/// `impl Repository` bounds, e.g. when one test drives every backend.
+impl<T: Repository + ?Sized> Repository for &T {
+    fn resolve(&self, name: &str) -> Result<CommitId, Error> {
+        (**self).resolve(name)
+    }
+
+    fn head_branch(&self) -> Option<String> {
+        (**self).head_branch()
+    }
+
+    fn meta(&self, id: CommitId) -> Result<CommitMeta, Error> {
+        (**self).meta(id)
+    }
+
+    fn details(&self, id: CommitId) -> Result<CommitDetails, Error> {
+        (**self).details(id)
+    }
 }
 
 /// Shared name-resolution precedence over two backend primitives: an

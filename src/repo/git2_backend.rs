@@ -12,6 +12,17 @@ use crate::repo::{CommitDetails, CommitId, CommitMeta, Repository, resolve_with}
 /// A repository opened through `git2`.
 pub struct Git2Repo {
     inner: git2::Repository,
+    /// Shallow-clone boundary commits: their recorded parents do not
+    /// exist locally and must be treated as absent, like git does.
+    shallow: std::collections::HashSet<CommitId>,
+}
+
+impl std::fmt::Debug for Git2Repo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Git2Repo")
+            .field("git_dir", &self.inner.path())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Git2Repo {
@@ -21,17 +32,19 @@ impl Git2Repo {
     ///
     /// Returns [`Error::Discover`] when no repository is found.
     pub fn discover(path: &Path) -> Result<Self, Error> {
-        git2::Repository::discover(path)
-            .map(|inner| Self { inner })
-            .map_err(|source| Error::Discover {
-                path: path.to_owned(),
-                source: source.into(),
-            })
+        let inner = git2::Repository::discover(path).map_err(|source| Error::Discover {
+            path: path.to_owned(),
+            source: source.into(),
+        })?;
+        let shallow = std::fs::read_to_string(inner.path().join("shallow"))
+            .map(|list| list.lines().filter_map(CommitId::from_hex).collect())
+            .unwrap_or_default();
+        Ok(Self { inner, shallow })
     }
 
     fn commit(&self, id: CommitId) -> Result<git2::Commit<'_>, Error> {
         self.inner
-            .find_commit(to_oid(id)?)
+            .find_commit(to_oid(id))
             .map_err(|source| Error::ReadCommit {
                 id,
                 source: source.into(),
@@ -39,11 +52,10 @@ impl Git2Repo {
     }
 }
 
-fn to_oid(id: CommitId) -> Result<git2::Oid, Error> {
-    git2::Oid::from_bytes(id.as_bytes()).map_err(|source| Error::ReadCommit {
-        id,
-        source: source.into(),
-    })
+/// Infallible for our fixed 20-byte ids; the zero oid stands in for a
+/// length mismatch libgit2 cannot produce here.
+fn to_oid(id: CommitId) -> git2::Oid {
+    git2::Oid::from_bytes(id.as_bytes()).unwrap_or(git2::Oid::ZERO_SHA1)
 }
 
 fn from_oid(oid: git2::Oid) -> Option<CommitId> {
@@ -64,7 +76,7 @@ impl Repository for Git2Repo {
                 from_oid(commit.id())
             },
             |id| {
-                let oid = to_oid(id).ok()?;
+                let oid = to_oid(id);
                 self.inner.find_commit(oid).ok().map(|_| id)
             },
         )
@@ -80,8 +92,13 @@ impl Repository for Git2Repo {
 
     fn meta(&self, id: CommitId) -> Result<CommitMeta, Error> {
         let commit = self.commit(id)?;
+        let parents = if self.shallow.contains(&id) {
+            Vec::new()
+        } else {
+            commit.parent_ids().filter_map(from_oid).collect()
+        };
         Ok(CommitMeta {
-            parents: commit.parent_ids().filter_map(from_oid).collect(),
+            parents,
             time: commit.time().seconds(),
         })
     }

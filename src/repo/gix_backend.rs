@@ -14,6 +14,17 @@ use crate::repo::{CommitDetails, CommitId, CommitMeta, Repository, resolve_with}
 /// A repository opened through `gix`.
 pub struct GixRepo {
     inner: gix::Repository,
+    /// Shallow-clone boundary commits: their recorded parents do not
+    /// exist locally and must be treated as absent, like git does.
+    shallow: std::collections::HashSet<CommitId>,
+}
+
+impl std::fmt::Debug for GixRepo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GixRepo")
+            .field("git_dir", &self.inner.path())
+            .finish_non_exhaustive()
+    }
 }
 
 impl GixRepo {
@@ -27,15 +38,16 @@ impl GixRepo {
             path: path.to_owned(),
             source: source.into(),
         })?;
-        if inner.object_hash() != gix::hash::Kind::Sha1 {
-            return Err(Error::UnsupportedObjectFormat {
-                format: inner.object_hash().to_string(),
-            });
-        }
         // Commits in packs are usually deltified against each other; a small
         // object cache saves re-inflating shared bases during the walk.
         inner.object_cache_size_if_unset(16 * 1024 * 1024);
-        Ok(Self { inner })
+        let shallow = inner
+            .shallow_commits()
+            .ok()
+            .flatten()
+            .map(|commits| commits.iter().copied().filter_map(from_oid).collect())
+            .unwrap_or_default();
+        Ok(Self { inner, shallow })
     }
 
     fn commit_data(&self, id: CommitId) -> Result<gix::Object<'_>, Error> {
@@ -61,11 +73,8 @@ const fn to_oid(id: CommitId) -> gix::ObjectId {
     gix::ObjectId::Sha1(*id.as_bytes())
 }
 
-const fn from_oid(oid: gix::ObjectId) -> Option<CommitId> {
-    match oid {
-        gix::ObjectId::Sha1(bytes) => Some(CommitId::from_bytes(bytes)),
-        _ => None,
-    }
+fn from_oid(oid: gix::ObjectId) -> Option<CommitId> {
+    oid.as_slice().try_into().map(CommitId::from_bytes).ok()
 }
 
 impl Repository for GixRepo {
@@ -86,11 +95,14 @@ impl Repository for GixRepo {
 
     fn head_branch(&self) -> Option<String> {
         let name = self.inner.head_name().ok().flatten()?;
+        // Unborn branches decorate nothing, matching git2 and git log.
+        self.inner.head_id().ok()?;
         Some(name.as_ref().shorten().to_string())
     }
 
     fn meta(&self, id: CommitId) -> Result<CommitMeta, Error> {
         let object = self.commit_data(id)?;
+        let grafted = self.shallow.contains(&id);
         let mut parents = Vec::new();
         let mut time = 0;
         for token in gix::objs::CommitRefIter::from_bytes(&object.data, self.inner.object_hash()) {
@@ -98,15 +110,7 @@ impl Repository for GixRepo {
                 id,
                 source: source.into(),
             })? {
-                Token::Parent { id: parent } => match from_oid(parent) {
-                    Some(parent) => parents.push(parent),
-                    None => {
-                        return Err(Error::ReadCommit {
-                            id,
-                            source: "non-SHA-1 parent id".into(),
-                        });
-                    }
-                },
+                Token::Parent { id: parent } if !grafted => parents.extend(from_oid(parent)),
                 Token::Committer { signature } => {
                     time = signature.seconds();
                     // Parents always precede the committer line, so the
