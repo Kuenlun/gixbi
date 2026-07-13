@@ -1,6 +1,8 @@
 # Releases happen on GitHub only: version bumps, changelog, tag and
-# release assets. The crate is not published to crates.io.
+# release assets. The crate is not published to crates.io, so versions
+# are determined from git tags (git_only) instead of a registry.
 [workspace]
 publish = false
+git_only = true
 git_release_enable = true
 git_tag_enable = true
