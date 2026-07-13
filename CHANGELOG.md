@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/Kuenlun/gixbi/compare/v0.1.0...v0.1.1) - 2026-07-13
+
+### Fixed
+
+- neutralize hostile commit data in the rendered report
+
+### Other
+
+- determine versions from git tags, the crate lives outside registries
+- release v0.1.0 ([#1](https://github.com/Kuenlun/gixbi/pull/1))
+
 ## [0.1.0](https://github.com/Kuenlun/gixbi/releases/tag/v0.1.0) - 2026-07-13
 
 ### Added
