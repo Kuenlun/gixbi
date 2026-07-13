@@ -9,3 +9,8 @@
 //! Given the tips of two or more branches, the library reconstructs how
 //! their histories flowed into each other and renders a compact terminal
 //! graph showing only those branches, hiding every intermediate one.
+
+pub mod error;
+pub mod repo;
+
+pub use error::Error;

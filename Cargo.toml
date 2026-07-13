@@ -31,3 +31,20 @@ codegen-units = 1
 panic = "abort"
 strip = "debuginfo"
 debug = false
+
+[dependencies]
+git2 = { version = "0.21", default-features = false, optional = true }
+gix = { version = "0.85", default-features = false, features = [
+    "max-performance-safe",
+    "sha1",
+], optional = true }
+thiserror = "2"
+
+# Exactly one git backend is compiled in; `gix` wins when both are enabled
+# (e.g. under --all-features) so the alternative can still be tested side
+# by side. Build a git2-based binary with:
+#   cargo build --no-default-features --features git2
+[features]
+default = ["gix"]
+gix = ["dep:gix"]
+git2 = ["dep:git2"]
