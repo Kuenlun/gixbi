@@ -33,6 +33,7 @@ strip = "debuginfo"
 debug = false
 
 [dependencies]
+anstyle = "1"
 git2 = { version = "0.21", default-features = false, optional = true }
 gix = { version = "0.85", default-features = false, features = [
     "max-performance-safe",

@@ -12,6 +12,7 @@
 
 pub mod analysis;
 pub mod error;
+pub mod render;
 pub mod repo;
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
